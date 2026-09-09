@@ -2244,7 +2244,11 @@ async function _cloudSyncStartup() {
         ]);
         if (hist) _salvarHistoricoStorage(hist.map(_rowToHist));
         if (kits) _salvarKits(kits.map(_rowToKit));
+        // nuvem é sempre a fonte da verdade no startup: se não tem rascunho lá pra
+        // essa marca, limpa o cache local também (autocorrige aba antiga com lixo
+        // em cache de antes do isolamento de marca ter sido corrigido).
         if (rasc?.data?.estado) localStorage.setItem('cpz_estado', JSON.stringify(rasc.data.estado));
+        else localStorage.removeItem('cpz_estado');
     } catch(e) { console.error('cloud sync startup', e); }
 }
 
