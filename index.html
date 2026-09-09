@@ -30,7 +30,7 @@
     --accent3:        #7c3aed;
     --blue:           #00e5ff;
     --blue-dim:       #06182c;
-    --blue-glow:      rgba(0,229,255,0.35);
+    --blue-glow:      rgba(0,229,255,0.16);
     --text:           #e2e8f0;
     --muted:          #7a9ab8;
     --label:          #a8bdd4;
@@ -130,7 +130,6 @@ body {
     font-family: var(--font-display);
     background: linear-gradient(135deg, var(--accent) 0%, var(--blue) 45%, var(--accent3) 100%);
     -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-    filter: drop-shadow(0 0 10px rgba(0,170,255,.35));
 }
 .subtitulo {
     margin: 3px 0 0;
@@ -500,22 +499,23 @@ body {
 
 /* ── RESULTADO ── */
 .resultado-card {
-    background: var(--resultado-bg, linear-gradient(135deg, #00aaff 0%, #00e5ff 45%, #7c3aed 100%));
+    background: var(--resultado-bg, linear-gradient(135deg, #0a6bb8 0%, #0091ab 45%, #5b2fa8 100%));
     border-radius: 18px;
     padding: 18px;
     margin-bottom: 10px;
-    box-shadow: var(--resultado-shdw, 0 8px 32px rgba(0,170,255,0.35), 0 0 60px rgba(124,58,237,0.15));
+    box-shadow: var(--resultado-shdw, 0 6px 18px rgba(0,20,40,0.35));
     border: 1px solid rgba(255,255,255,0.12);
 }
 .resultado-label {
     font-size: 11px;
-    color: rgba(255,255,255,0.75);
+    color: rgba(255,255,255,0.8);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.7px;
     margin-bottom: 4px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.35);
 }
-.resultado-valor { font-size: 36px; font-weight: 700; color: white; line-height: 1; letter-spacing: -0.5px; }
+.resultado-valor { font-size: 36px; font-weight: 700; color: white; line-height: 1; letter-spacing: -0.5px; text-shadow: 0 1px 4px rgba(0,0,0,0.35); }
 
 .resumo-toggle {
     display: flex; align-items: center; justify-content: space-between;
