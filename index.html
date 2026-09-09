@@ -16,34 +16,40 @@
 <style>
 
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&display=swap');
+@import url('https://fonts.cdnfonts.com/css/ethnocentric');
 
+/* Paleta idêntica à do site institucional (Sites/CPZ.Digital-site) — mesmos
+   tons de fundo, mesmo par accent/accent2/accent3, mesma linguagem "tech". */
 :root {
-    --bg:             #0b0d11;
-    --surface:        #13161c;
-    --surface2:       #1a1e26;
-    --border:         #22272f;
-    --border2:        #2c3340;
+    --bg:             #020408;
+    --surface:        #040c18;
+    --surface2:       #081020;
+    --border:         #0d1e30;
+    --border2:        #102030;
+    --accent:         #00aaff;
+    --accent3:        #7c3aed;
     --blue:           #00e5ff;
-    --blue-dim:       #063339;
+    --blue-dim:       #06182c;
     --blue-glow:      rgba(0,229,255,0.35);
-    --text:           #f0f4ff;
-    --muted:          #7c8799;
-    --label:          #b8c2d0;
-    --item-bg:        #1e222a;
-    --ok:             #0d3320;
-    --warn:           #3d2500;
-    --danger:         #3d0f0f;
-    --ok-text:        #3dce74;
-    --warn-text:      #f5c842;
+    --text:           #e2e8f0;
+    --muted:          #7a9ab8;
+    --label:          #a8bdd4;
+    --item-bg:        #081020;
+    --ok:             rgba(0,255,170,0.08);
+    --warn:           rgba(245,158,11,0.08);
+    --danger:         rgba(244,112,112,0.1);
+    --ok-text:        #00ffaa;
+    --warn-text:      #f59e0b;
     --danger-text:    #f47070;
-    --dropdown-bg:    #171b22;
-    --dropdown-grupo: #111418;
-    --input-bg:       #1e222a;
-    --input-color:    #f0f4ff;
-    --green:          #0f6b2e;
-    --green-glow:     rgba(15,107,46,0.3);
-    --shadow-card:    0 2px 12px rgba(0,0,0,0.45);
-    --shadow-drop:    0 12px 32px rgba(0,0,0,0.6);
+    --dropdown-bg:    #040c18;
+    --dropdown-grupo: #020408;
+    --input-bg:       #081020;
+    --input-color:    #e2e8f0;
+    --green:          #00ffaa;
+    --green-glow:     rgba(0,255,170,0.3);
+    --shadow-card:    0 2px 12px rgba(0,0,0,0.5);
+    --shadow-drop:    0 12px 32px rgba(0,0,0,0.65);
+    --font-display:   'Ethnocentric', sans-serif;
 }
 
 /* v2.0: dark mode é a identidade fixa do app, não depende mais do tema do sistema
@@ -73,7 +79,11 @@ body.ba-vision {
 body {
     margin: 0;
     min-height: 100vh;
-    background: var(--bg);
+    background:
+        linear-gradient(rgba(0,170,255,.05) 1px,transparent 1px) 0 0/28px 28px,
+        linear-gradient(90deg,rgba(0,170,255,.05) 1px,transparent 1px) 0 0/28px 28px,
+        var(--bg);
+    background-attachment: fixed;
     color: var(--text);
     font-family: 'DM Sans', Arial, sans-serif;
     padding: 14px 12px 110px;
@@ -121,17 +131,21 @@ body {
 .followup-btn-fechar { background: transparent; color: #f5c842; text-decoration: underline; }
 .topo-texto h2 {
     margin: 0;
-    font-size: 21px;
+    font-size: 19px;
     font-weight: 700;
-    letter-spacing: -0.3px;
-    color: var(--text);
+    letter-spacing: -0.2px;
+    font-family: var(--font-display);
+    background: linear-gradient(135deg, var(--accent) 0%, var(--blue) 45%, var(--accent3) 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 10px rgba(0,170,255,.35));
 }
 .subtitulo {
-    margin: 2px 0 0;
+    margin: 3px 0 0;
     color: var(--muted);
-    font-size: 12px;
-    font-weight: 500;
-    letter-spacing: 0.2px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
 }
 .logo-empresa {
     height: auto;
@@ -493,11 +507,11 @@ body {
 
 /* ── RESULTADO ── */
 .resultado-card {
-    background: var(--resultado-bg, linear-gradient(135deg, #0a5fd4 0%, #0A84FF 60%, #38a1ff 100%));
+    background: var(--resultado-bg, linear-gradient(135deg, #00aaff 0%, #00e5ff 45%, #7c3aed 100%));
     border-radius: 18px;
     padding: 18px;
     margin-bottom: 10px;
-    box-shadow: var(--resultado-shdw, 0 8px 28px rgba(10,132,255,0.35));
+    box-shadow: var(--resultado-shdw, 0 8px 32px rgba(0,170,255,0.35), 0 0 60px rgba(124,58,237,0.15));
     border: 1px solid rgba(255,255,255,0.12);
 }
 .resultado-label {
@@ -1054,10 +1068,21 @@ body {
     flex-shrink: 0;
 }
 #chatHeader h3 { margin: 0; font-size: 16px; font-weight: 800; flex: 1; }
-#chatStatus {
-    font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 99px;
-    background: var(--surface2); color: var(--muted); white-space: nowrap;
+@keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .35; transform: scale(1.7); } }
+.status-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 700; padding: 4px 10px 4px 8px; border-radius: 99px;
+    white-space: nowrap; letter-spacing: 0.02em;
 }
+.status-badge .dot { width: 6px; height: 6px; border-radius: 50%; animation: pulse 2s infinite; flex-shrink: 0; }
+.badge-live { background: rgba(0,255,170,.08); border: 1px solid rgba(0,255,170,.25); color: var(--ok-text); }
+.badge-live .dot { background: var(--ok-text); box-shadow: 0 0 8px var(--ok-text); }
+.badge-ready { background: rgba(0,170,255,.08); border: 1px solid rgba(0,170,255,.25); color: var(--accent); }
+.badge-ready .dot { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+.badge-dev { background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.25); color: var(--warn-text); }
+.badge-dev .dot { background: var(--warn-text); box-shadow: 0 0 8px var(--warn-text); }
+.badge-off { background: rgba(244,112,112,.08); border: 1px solid rgba(244,112,112,.25); color: var(--danger-text); }
+.badge-off .dot { background: var(--danger-text); box-shadow: 0 0 8px var(--danger-text); animation: none; }
 #chatFechar {
     background: var(--surface2); border: none; color: var(--text);
     width: 30px; height: 30px; border-radius: 99px; font-size: 15px; cursor: pointer;
@@ -1133,7 +1158,7 @@ body {
 <div id="chatOverlay">
     <div id="chatHeader">
         <h3>Especialista CFTV</h3>
-        <span id="chatStatus">🧪 prévia</span>
+        <span id="chatStatus" class="status-badge badge-dev"><span class="dot"></span>Prévia</span>
         <button id="chatFechar" onclick="fecharChat()">✕</button>
     </div>
     <div id="chatMsgs"></div>
