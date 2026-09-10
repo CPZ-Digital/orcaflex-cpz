@@ -1108,6 +1108,11 @@ body {
     background: var(--blue); color: #04181a; border: none; border-radius: 14px;
     width: 46px; font-size: 18px; cursor: pointer; box-shadow: 0 4px 16px var(--blue-glow);
 }
+.chat-aplicar-btn {
+    width: 100%; background: var(--blue); color: #04181a; border: none;
+    border-radius: 10px; padding: 10px; font-size: 13px; font-weight: 700;
+    cursor: pointer; font-family: inherit;
+}
 #chatClassicoBtn {
     margin: 0 16px 14px; background: none; border: none; color: var(--muted);
     font-size: 12px; text-decoration: underline; cursor: pointer; font-family: inherit; flex-shrink: 0;
@@ -3876,15 +3881,16 @@ function renderHistorico() {
     }).join('');
 }
 
-/* ── CHAT (v2.0) — Fase 2: UI + respostas mockadas, sem IA de verdade ainda ── */
+/* ── CHAT (v2.0) — Fase 5: ligado na ponte de verdade do AdrianPC ── */
+// Fase 4 (túnel público via Pi-lofi) ainda não existe -- por enquanto só
+// alcançável dentro da mesma tailnet (notebook). Trocar aqui quando o
+// relay público subir.
+const CHAT_BRIDGE_URL = 'http://100.75.97.105:8898';
+const CHAT_TOKEN = 'WO5JASJPN52pKFCidB0vs_OaDtlmEf66';
+
 let _chatAberto = false;
-const _chatPerguntasMock = [
-    "Quantas câmeras, aproximadamente?",
-    "É ambiente interno, externo ou os dois?",
-    "Analógica, IP ou mista?",
-    "Vai ser você sozinho ou com sócio nessa obra?",
-];
-let _chatPerguntaIdx = 0;
+let _chatHistorico = [];
+let _chatEnviando = false;
 
 function _chatBolha(texto, quem) {
     const div = document.createElement('div');
@@ -3892,6 +3898,26 @@ function _chatBolha(texto, quem) {
     div.textContent = texto;
     document.getElementById('chatMsgs').appendChild(div);
     document.getElementById('chatMsgs').scrollTop = 9e9;
+    return div;
+}
+
+function _chatSetStatus(estado) {
+    const el = document.getElementById('chatStatus');
+    el.className = 'status-badge ' + (estado === 'online' ? 'badge-live' : estado === 'checando' ? 'badge-dev' : 'badge-off');
+    el.innerHTML = '<span class="dot"></span>' + (estado === 'online' ? 'Disponível' : estado === 'checando' ? 'Checando...' : 'Indisponível');
+}
+
+async function _chatVerificarStatus() {
+    _chatSetStatus('checando');
+    try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 4000);
+        const r = await fetch(CHAT_BRIDGE_URL + '/health', { signal: ctrl.signal });
+        clearTimeout(t);
+        _chatSetStatus(r.ok ? 'online' : 'offline');
+    } catch (e) {
+        _chatSetStatus('offline');
+    }
 }
 
 function abrirChat() {
@@ -3899,8 +3925,9 @@ function abrirChat() {
     if (document.querySelector('.fab-area')) document.querySelector('.fab-area').style.display = 'none';
     if (!_chatAberto) {
         _chatAberto = true;
-        _chatBolha("Oi! Sou o especialista em CFTV do app — ainda em prévia (fase de teste de interface, a IA de verdade entra numa próxima etapa). Me conta um pouco do projeto que eu já vou puxando os detalhes.", 'ia');
+        _chatBolha("Oi! Sou o especialista em CFTV do app. Me conta um pouco do projeto (tipo de ambiente, quantas câmeras, etc.) que eu vou te fazendo perguntas objetivas e sugerindo os itens.", 'ia');
     }
+    _chatVerificarStatus();
     document.getElementById('chatInput').focus();
 }
 
@@ -3909,16 +3936,77 @@ function fecharChat() {
     if (document.querySelector('.fab-area')) document.querySelector('.fab-area').style.display = '';
 }
 
-function chatEnviar() {
+function _chatExtrairBlocoOrcamento(texto) {
+    const m = texto.match(/```orcamento\s*([\s\S]*?)```/);
+    if (!m) return { textoLimpo: texto, dados: null };
+    const textoLimpo = texto.slice(0, m.index).trim();
+    try {
+        return { textoLimpo, dados: JSON.parse(m[1].trim()) };
+    } catch (e) {
+        return { textoLimpo: texto, dados: null };
+    }
+}
+
+function _chatAplicarOrcamento(dados) {
+    document.getElementById('listaProdutos').innerHTML = '';
+    document.getElementById('listaInfra').innerHTML = '';
+    (dados.produtos || []).forEach(p => adicionarProduto(p.codigo, p.qtd));
+    (dados.infra || []).forEach(i => adicionarInfra(i.nome, i.qtd));
+    if (!document.querySelectorAll('.item-produto').length) adicionarProduto();
+    if (!document.querySelectorAll('.item-infra').length) adicionarInfra();
+    if (dados.diasTrabalho) document.getElementById('diasTrabalho').value = dados.diasTrabalho;
+    if (dados.diasDiarista) document.getElementById('diasDiarista').value = dados.diasDiarista;
+    calcular();
+    fecharChat();
+    mostrarToast('Orçamento atualizado a partir do chat!');
+}
+
+function _chatCardRevisao(dados) {
+    const wrap = document.createElement('div');
+    wrap.className = 'chat-bolha ia';
+    wrap.style.cssText = 'width:100%;max-width:100%;';
+    const nProd = (dados.produtos || []).length, nInfra = (dados.infra || []).length;
+    wrap.innerHTML = `<div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:6px;">Sugestão de itens (${nProd} produto${nProd===1?'':'s'}, ${nInfra} infra)</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Revise antes de aplicar — isso substitui os itens atuais do orçamento.</div>
+        <button class="chat-aplicar-btn">Aplicar no orçamento</button>`;
+    wrap.querySelector('.chat-aplicar-btn').onclick = () => _chatAplicarOrcamento(dados);
+    document.getElementById('chatMsgs').appendChild(wrap);
+    document.getElementById('chatMsgs').scrollTop = 9e9;
+}
+
+async function chatEnviar() {
+    if (_chatEnviando) return;
     const input = document.getElementById('chatInput');
     const texto = input.value.trim();
     if (!texto) return;
     _chatBolha(texto, 'eu');
+    _chatHistorico.push({ role: 'user', content: texto });
     input.value = '';
-    setTimeout(() => {
-        _chatBolha(_chatPerguntasMock[_chatPerguntaIdx % _chatPerguntasMock.length], 'ia');
-        _chatPerguntaIdx++;
-    }, 500);
+    _chatEnviando = true;
+    const digitando = _chatBolha('...', 'ia');
+    try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 100000);
+        const r = await fetch(CHAT_BRIDGE_URL + '/chat', {
+            method: 'POST', signal: ctrl.signal,
+            headers: { 'Content-Type': 'application/json', 'X-Orca-Token': CHAT_TOKEN },
+            body: JSON.stringify({ messages: _chatHistorico }),
+        });
+        clearTimeout(t);
+        const j = await r.json();
+        digitando.remove();
+        if (!r.ok) throw new Error(j.error || 'erro na ponte');
+        const { textoLimpo, dados } = _chatExtrairBlocoOrcamento(j.reply);
+        _chatBolha(textoLimpo || j.reply, 'ia');
+        _chatHistorico.push({ role: 'assistant', content: j.reply });
+        if (dados) _chatCardRevisao(dados);
+    } catch (e) {
+        digitando.remove();
+        _chatBolha('Não consegui falar com o especialista agora (' + (e.message || 'erro de conexão') + '). Você pode continuar no formulário clássico.', 'ia');
+        _chatSetStatus('offline');
+    } finally {
+        _chatEnviando = false;
+    }
 }
 
 function abrirHistorico() {
