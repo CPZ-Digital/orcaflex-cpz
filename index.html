@@ -1159,6 +1159,10 @@ body {
         <span id="chatStatus" class="status-badge badge-dev"><span class="dot"></span>Prévia</span>
         <button id="chatFechar" onclick="fecharChat()">✕</button>
     </div>
+    <div id="chatWakeBar" style="display:none;padding:10px 16px;border-bottom:1px solid var(--border);align-items:center;gap:10px;">
+        <span style="font-size:12px;color:var(--muted);flex:1;">O PC do especialista tá desligado.</span>
+        <button id="chatWakeBtn" onclick="_chatLigarRemoto()" style="background:var(--blue);color:#04181a;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;">Ligar remotamente</button>
+    </div>
     <div id="chatMsgs"></div>
     <div id="chatInputRow">
         <input id="chatInput" type="text" placeholder="Descreva o projeto..." autocomplete="off" onkeydown="if(event.key==='Enter')chatEnviar()">
@@ -3881,11 +3885,11 @@ function renderHistorico() {
     }).join('');
 }
 
-/* ── CHAT (v2.0) — Fase 5: ligado na ponte de verdade do AdrianPC ── */
-// Fase 4 (túnel público via Pi-lofi) ainda não existe -- por enquanto só
-// alcançável dentro da mesma tailnet (notebook). Trocar aqui quando o
-// relay público subir.
-const CHAT_BRIDGE_URL = 'http://100.75.97.105:8898';
+/* ── CHAT (v2.0) — Fase 4+5: relay público no Pi-lofi + ponte de verdade ── */
+// Todo tráfego (status/wake/chat) passa pelo relay público do Pi-lofi via
+// Cloudflare Tunnel -- o bridge do AdrianPC nunca fica exposto direto,
+// só alcançável pela LAN de casa (o relay que faz essa ponte).
+const CHAT_BRIDGE_URL = 'https://orcaflex.cpzdigital.com.br';
 const CHAT_TOKEN = 'WO5JASJPN52pKFCidB0vs_OaDtlmEf66';
 
 let _chatAberto = false;
@@ -3911,13 +3915,49 @@ async function _chatVerificarStatus() {
     _chatSetStatus('checando');
     try {
         const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), 4000);
-        const r = await fetch(CHAT_BRIDGE_URL + '/health', { signal: ctrl.signal });
+        const t = setTimeout(() => ctrl.abort(), 5000);
+        const r = await fetch(CHAT_BRIDGE_URL + '/status', {
+            signal: ctrl.signal, headers: { 'X-Orca-Token': CHAT_TOKEN },
+        });
         clearTimeout(t);
-        _chatSetStatus(r.ok ? 'online' : 'offline');
+        const j = await r.json();
+        _chatSetStatus(j.online ? 'online' : 'offline');
+        document.getElementById('chatWakeBar').style.display = j.online ? 'none' : 'flex';
     } catch (e) {
         _chatSetStatus('offline');
+        document.getElementById('chatWakeBar').style.display = 'flex';
     }
+}
+
+async function _chatLigarRemoto() {
+    const btn = document.getElementById('chatWakeBtn');
+    btn.disabled = true;
+    btn.textContent = 'Ligando...';
+    try {
+        await fetch(CHAT_BRIDGE_URL + '/wake', {
+            method: 'POST', headers: { 'X-Orca-Token': CHAT_TOKEN },
+        });
+    } catch (e) { /* segue tentando via polling mesmo assim */ }
+    let tentativas = 0;
+    const poll = setInterval(async () => {
+        tentativas++;
+        try {
+            const r = await fetch(CHAT_BRIDGE_URL + '/status', { headers: { 'X-Orca-Token': CHAT_TOKEN } });
+            const j = await r.json();
+            if (j.online) {
+                clearInterval(poll);
+                _chatSetStatus('online');
+                document.getElementById('chatWakeBar').style.display = 'none';
+                btn.disabled = false; btn.textContent = 'Ligar remotamente';
+                return;
+            }
+        } catch (e) { /* ignora e tenta de novo */ }
+        if (tentativas >= 24) {
+            clearInterval(poll);
+            btn.disabled = false;
+            btn.textContent = 'Tentar de novo';
+        }
+    }, 5000);
 }
 
 function abrirChat() {
