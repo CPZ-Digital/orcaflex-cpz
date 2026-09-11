@@ -793,8 +793,8 @@ body {
 .pag-overlay.aberto { opacity: 1; pointer-events: all; }
 .pag-modal {
     background: var(--surface);
-    border-radius: 22px 22px 0 0;
-    border-top: 1px solid var(--border);
+    border-radius: 14px 14px 0 0;
+    border-top: 2px solid var(--blue); box-shadow: 0 -8px 24px var(--blue-glow);
     width: 100%; max-width: 480px; max-height: 88vh;
     overflow-y: auto;
     padding: 18px 16px 44px;
@@ -807,7 +807,12 @@ body {
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 16px;
 }
-.pag-titulo { font-size: 17px; font-weight: 700; color: var(--text); }
+.pag-titulo {
+    font-size: 16px; font-weight: 700; letter-spacing: 0.02em;
+    font-family: var(--font-display);
+    background: linear-gradient(135deg, var(--accent) 0%, var(--blue) 60%, var(--accent3) 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
 .pag-fechar {
     width: 34px; height: 34px;
     display: flex; align-items: center; justify-content: center;
