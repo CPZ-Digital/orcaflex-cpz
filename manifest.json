@@ -1,7 +1,7 @@
 {
-  "name": "CPZ Digital — Orçamento",
-  "short_name": "CPZ Orçamento",
-  "description": "Gerador de propostas para câmeras de segurança",
+  "name": "OrçaFlex (beta)",
+  "short_name": "OrçaFlex",
+  "description": "Orçamento pessoal de CFTV com assistente de IA — versão beta",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",
