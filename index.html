@@ -2280,6 +2280,42 @@ const _supa  = window.supabase.createClient(
     'sb_publishable_IDA-WMWDbUE4cj0LllUeHg_Epoj7oa5'
 );
 
+// Sem login, a RLS bloqueia leitura/escrita nas tabelas -- antes disso o app
+// não tinha autenticação nenhuma, só o filtro marca=eq.orcaflex no client
+// (auditoria de segurança 2026-09-16). Sessão persiste no localStorage do
+// supabase-js, então só pede senha uma vez por navegador/aparelho.
+const AUTH_EMAIL = 'equipe@cpzdigital.com.br';
+async function _ensureAuth() {
+    const { data: { session } } = await _supa.auth.getSession();
+    if (session) return true;
+    return new Promise((resolve) => {
+        const box = document.createElement('div');
+        box.id = 'authOverlay';
+        box.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:99999;display:flex;align-items:center;justify-content:center;';
+        box.innerHTML = `
+            <div style="background:#1a1a1a;padding:28px 24px;border-radius:16px;max-width:320px;width:90%;text-align:center;">
+                <p style="color:#fff;margin-bottom:14px;font-size:14px;">Senha de acesso</p>
+                <input id="authPass" type="password" placeholder="Senha" autocomplete="current-password" style="width:100%;padding:12px;border-radius:8px;border:none;margin-bottom:10px;font-size:16px;box-sizing:border-box;">
+                <p id="authErr" style="color:#f87171;font-size:12px;min-height:16px;"></p>
+                <button id="authBtn" style="width:100%;padding:12px;border-radius:8px;border:none;background:#3dcc3d;color:#000;font-weight:bold;">Entrar</button>
+            </div>`;
+        document.body.appendChild(box);
+        const input = box.querySelector('#authPass');
+        const err = box.querySelector('#authErr');
+        input.focus();
+        async function tentar() {
+            const pass = input.value;
+            if (!pass) return;
+            const { error } = await _supa.auth.signInWithPassword({ email: AUTH_EMAIL, password: pass });
+            if (error) { err.textContent = 'Senha incorreta'; input.value = ''; input.focus(); return; }
+            box.remove();
+            resolve(true);
+        }
+        box.querySelector('#authBtn').onclick = tentar;
+        input.addEventListener('keydown', e => { if (e.key === 'Enter') tentar(); });
+    });
+}
+
 async function _cloudUpsert(table, row) {
     try { await _supa.from(table).upsert(row); } catch(e) { console.error('cloud upsert', table, e); }
 }
@@ -3550,6 +3586,7 @@ function fecharFollowup() {
 
 // ── INIT ──
 async function init() {
+    await _ensureAuth();
     await carregarBanco();
     await _cloudSyncStartup();
     if (!restaurarEstado()) {
