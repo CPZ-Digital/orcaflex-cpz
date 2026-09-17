@@ -3983,7 +3983,13 @@ function renderHistorico() {
 // Cloudflare Tunnel -- o bridge do AdrianPC nunca fica exposto direto,
 // só alcançável pela LAN de casa (o relay que faz essa ponte).
 const CHAT_BRIDGE_URL = 'https://orcaflex.cpzdigital.com.br';
-const CHAT_TOKEN = 'AL0oUh-Dpi68HBRymLNLR7A1u8UvjCfn3IaAFybBWTM';
+// Antes era um token fixo, visível no view-source pra qualquer um (auditoria
+// de segurança 2026-09-16, segunda rodada). Agora a ponte/relay validam a
+// sessão real do Supabase Auth -- _ensureAuth() já garante que ela existe.
+async function _chatToken() {
+    const { data: { session } } = await _supa.auth.getSession();
+    return session?.access_token ?? '';
+}
 
 let _chatAberto = false;
 let _chatHistorico = [];
@@ -4054,7 +4060,7 @@ async function _chatVerificarStatus() {
         const ctrl = new AbortController();
         const t = setTimeout(() => ctrl.abort(), 5000);
         const r = await fetch(CHAT_BRIDGE_URL + '/status', {
-            signal: ctrl.signal, headers: { 'X-Orca-Token': CHAT_TOKEN },
+            signal: ctrl.signal, headers: { 'X-Orca-Token': await _chatToken() },
         });
         clearTimeout(t);
         const j = await r.json();
@@ -4072,14 +4078,14 @@ async function _chatLigarRemoto() {
     btn.textContent = 'Ligando...';
     try {
         await fetch(CHAT_BRIDGE_URL + '/wake', {
-            method: 'POST', headers: { 'X-Orca-Token': CHAT_TOKEN },
+            method: 'POST', headers: { 'X-Orca-Token': await _chatToken() },
         });
     } catch (e) { /* segue tentando via polling mesmo assim */ }
     let tentativas = 0;
     const poll = setInterval(async () => {
         tentativas++;
         try {
-            const r = await fetch(CHAT_BRIDGE_URL + '/status', { headers: { 'X-Orca-Token': CHAT_TOKEN } });
+            const r = await fetch(CHAT_BRIDGE_URL + '/status', { headers: { 'X-Orca-Token': await _chatToken() } });
             const j = await r.json();
             if (j.online) {
                 clearInterval(poll);
@@ -4166,7 +4172,7 @@ async function chatEnviar() {
         const t = setTimeout(() => ctrl.abort(), 100000);
         const r = await fetch(CHAT_BRIDGE_URL + '/chat', {
             method: 'POST', signal: ctrl.signal,
-            headers: { 'Content-Type': 'application/json', 'X-Orca-Token': CHAT_TOKEN },
+            headers: { 'Content-Type': 'application/json', 'X-Orca-Token': await _chatToken() },
             body: JSON.stringify({ messages: _chatHistorico }),
         });
         clearTimeout(t);
