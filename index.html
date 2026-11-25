@@ -2565,10 +2565,10 @@ function _emvPix(id, value) {
     return id + String(value.length).padStart(2, '0') + value;
 }
 function _payloadPix(chave, nome, cidade, txid) {
-    const merchantAccount = _emvPix('26', _emvPix('00', 'BR.GOV.BCB.PIX') + _emvPix('01', chave));
+    const merchantAccount = _emvPix('26', _emvPix('00', 'br.gov.bcb.pix') + _emvPix('01', chave));
     const tx = String(txid || '').replace(/[^A-Za-z0-9]/g, '').substring(0, 25) || '***'; // BR Code: só letras e números
     let payload = _emvPix('00', '01') + _emvPix('01', '11') + merchantAccount + _emvPix('52', '0000') + _emvPix('53', '986') +
-        _emvPix('58', 'BR') + _emvPix('59', nome.substring(0, 25)) + _emvPix('60', cidade.substring(0, 15)) +
+        _emvPix('58', 'BR') + _emvPix('59', nome.toUpperCase().substring(0, 25)) + _emvPix('60', cidade.toUpperCase().substring(0, 15)) +
         _emvPix('62', _emvPix('05', tx));
     payload += '6304';
     return payload + _crc16Pix(payload);
