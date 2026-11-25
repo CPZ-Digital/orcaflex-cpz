@@ -2566,9 +2566,10 @@ function _emvPix(id, value) {
 }
 function _payloadPix(chave, nome, cidade, txid) {
     const merchantAccount = _emvPix('26', _emvPix('00', 'BR.GOV.BCB.PIX') + _emvPix('01', chave));
-    let payload = _emvPix('00', '01') + merchantAccount + _emvPix('52', '0000') + _emvPix('53', '986') +
+    const tx = String(txid || '').replace(/[^A-Za-z0-9]/g, '').substring(0, 25) || '***'; // BR Code: só letras e números
+    let payload = _emvPix('00', '01') + _emvPix('01', '11') + merchantAccount + _emvPix('52', '0000') + _emvPix('53', '986') +
         _emvPix('58', 'BR') + _emvPix('59', nome.substring(0, 25)) + _emvPix('60', cidade.substring(0, 15)) +
-        _emvPix('62', _emvPix('05', (txid || '***').substring(0, 25)));
+        _emvPix('62', _emvPix('05', tx));
     payload += '6304';
     return payload + _crc16Pix(payload);
 }
@@ -2582,8 +2583,8 @@ function _pixBlockHTML(cor, corBg, cnpj, marca, numero) {
     return `<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:6px;">
         <tr><td style="background:${corBg};border:1.5px solid ${cor};border-radius:6px;padding:10px 14px;">
             <table width="100%" cellpadding="0" cellspacing="0"><tr>
-                <td style="width:54px;vertical-align:middle;">
-                    <img src="${qrSrc}" width="48" height="48" style="display:block;background:#fff;border:1px solid #ddd;border-radius:4px;padding:2px;">
+                <td style="width:90px;vertical-align:middle;">
+                    <img src="${qrSrc}" width="84" height="84" style="display:block;background:#fff;border:1px solid #ddd;border-radius:4px;padding:2px;">
                 </td>
                 <td style="vertical-align:middle;padding-left:12px;">
                     <p style="margin:0;font-size:11.5px;font-weight:700;color:${cor};text-transform:uppercase;letter-spacing:0.4px;">Pague via Pix — ${marca}</p>

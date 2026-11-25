@@ -1,4 +1,4 @@
-const CACHE = 'orcaflex-v13';
+const CACHE = 'orcaflex-v14';
 const ASSETS = [
   './index.html',
   './template-pdf.html',
