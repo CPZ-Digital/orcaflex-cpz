@@ -2400,7 +2400,7 @@ async function _cloudUpsert(table, row) {
     }
 }
 async function _reenviarPendentes() {
-    for (const t of ['propostas', 'kits']) for (const row of _pendLer(t)) await _cloudUpsert(t, row);
+    for (const t of ['propostas', 'kits']) for (const row of _pendLer(t)) await _cloudUpsert(t, { ...row, marca: _marca }); // a fila pode ter linha da marca antiga
 }
 function _mesclar(table, nuvem, fromRow) { // nuvem + o que ainda não subiu
     const ids = new Set(nuvem.map(r => r.id));
