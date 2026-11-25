@@ -1761,6 +1761,47 @@ function simplificarNome(nome) {
         .replace(/c\/MICROSD/gi,"com MicroSD").replace(/\s*-\s*/g," - ");
 }
 
+// Descrição curta pra proposta/contrato/locação: tipo de produto + o que importa, sem modelo nem ficha técnica.
+// Item fora do catálogo (digitado à mão) volta como foi digitado. A busca do app continua com o nome completo.
+function descCliente(codigo) {
+    const p = produtos.find(x => x.codigo === codigo);
+    if (!p) return codigo;
+    const n = (p.nome || '').toUpperCase();
+    const g = rx => (n.match(rx) || [])[1];
+    const canais = g(/(\d+)\s*CANAIS/), tb = g(/(\d+)\s*TB/), comHd = g(/(?:C\/|COM)\s*HD\s*(\d+)\s*TB/);
+    const gravador = nome => nome + (canais ? ' ' + canais + ' canais' : '') + (comHd ? ' com HD de ' + comHd + 'TB' : '');
+    if (/^CART[ÃA]O/.test(n)) return 'Cartão microSD' + (g(/(\d+)\s*GB/) ? ' ' + g(/(\d+)\s*GB/) + 'GB' : '');
+    if (/^C[ÂA]MERA|^VH[DL]\b|^VIPC?\b/.test(n)) {
+        const tech = /WI\s*-?\s*FI/.test(n) ? 'Wi-Fi' : /\bIP\b|^VIPC?\b/.test(n) ? 'IP' : '';
+        const tipo = /SPEED DOME/.test(n) ? 'speed dome' : /DOME/.test(n) ? 'dome' : /BULLET/.test(n) ? 'bullet' : '';
+        return ['Câmera', tech, tipo, /FULL COLOR|FC\+|SUPER COLOR/.test(n) ? 'Full Color' : ''].filter(Boolean).join(' ');
+    }
+    if (/MHDX/.test(n)) return gravador('Gravador digital de vídeo (DVR)');
+    if (/NVD|EM REDE|^GRAVADOR/.test(n)) return gravador('Gravador digital de vídeo em rede (NVR)');
+    if (/^HD\b|DISCO R[IÍ]GIDO|^DISCO/.test(n)) return 'HD' + (tb ? ' ' + tb + 'TB' : '') + ' para vigilância';
+    if (/SWITCH/.test(n)) return 'Switch' + (g(/(\d+)\s*(?:PORTAS|P\b)/) ? ' ' + g(/(\d+)\s*(?:PORTAS|P\b)/) + ' portas' : '') + (/POE/.test(n) ? ' PoE' : '');
+    if (/NOBREAK/.test(n)) return 'Nobreak' + (g(/(\d{3,4})\s*VA/) ? ' ' + g(/(\d{3,4})\s*VA/) + 'VA' : '');
+    if (/MINI RACK|^RACK/.test(n)) return 'Mini rack' + (g(/(\d+)\s*U\b/) ? ' ' + g(/(\d+)\s*U\b/) + 'U' : '');
+    if (/PROTETOR|R[ÉE]GUA/.test(n)) return 'Régua de tomadas' + (g(/(\d+)\s*TOMADAS/) ? ' (' + g(/(\d+)\s*TOMADAS/) + ' tomadas)' : '');
+    if (/^INJETOR/.test(n)) return 'Injetor PoE';
+    if (/ROTEADOR/.test(n)) return 'Roteador digital sem fio';
+    if (/^CONEX|^CONECTOR/.test(n)) return /P4/.test(n) ? 'Conector de alimentação P4' : /BNC/.test(n) ? 'Conector BNC' : 'Conector';
+    if (/^(CONVERSOR|FONTE)/.test(n)) return 'Fonte de alimentação 12V' + (g(/\b(\d+)\s*A\b/) ? ' ' + g(/\b(\d+)\s*A\b/) + 'A' : '');
+    if (/CABO CFTV/.test(n)) return 'Cabo CFTV' + (g(/(\d+)\s*M\b/) ? ' (rolo de ' + g(/(\d+)\s*M\b/) + ' m)' : '');
+    if (/CABO HDMI/.test(n)) return 'Cabo HDMI' + (g(/([\d,]+)\s*M\b/) ? ' ' + g(/([\d,]+)\s*M\b/) + ' m' : '');
+    if (/BALUN/.test(n)) return /POWER/.test(n) ? 'Balun com alimentação' : 'Balun de vídeo';
+    if (/CAIXA DE PASSAGEM|VBOX/.test(n)) return 'Caixa de passagem para câmera';
+    if (/INTERRUPTOR/.test(n)) { const t = g(/(\d+)\s*TECLA/); return 'Interruptor Wi-Fi touch' + (/DIMMER/.test(n) ? ' dimmer' : t ? ' (' + t + (t === '1' ? ' tecla)' : ' teclas)') : ''); }
+    if (/MOUSE/.test(n)) return 'Mouse sem fio';
+    // sem regra: primeiro trecho do nome com 2+ palavras que não sejam código de modelo; siglas curtas desconhecidas (XSE, VEX) saem
+    const SIGLAS = /^(HDMI|IP|POE|USB|DVR|NVR|HD|SD|LED|BNC|UTP|CFTV|KVM|PTZ|RJ45|AC|DC|TX|RX|SFP|4K)$/i;
+    const palavras = trecho => trecho.replace(/\(.*?\)/g, ' ').split(/\s+/).filter(w => w && !/[\d()]/.test(w) && (SIGLAS.test(w) || w.length > 3 || w !== w.toUpperCase()));
+    const seg = (p.nome || '').split(/ - |, /).map(palavras).find(x => x.length >= 2) || [p.nome || codigo];
+    const ws = seg.slice(0, 6); while (ws.length > 1 && /^(DE|DO|DA|PARA|E|COM|EM)$/i.test(ws[ws.length - 1])) ws.pop();
+    const t = ws.filter((w, i) => !i || w.toLowerCase() !== ws[i - 1].toLowerCase()).map(w => /^(DE|DO|DA|PARA|E|COM|EM)$/i.test(w) ? w.toLowerCase() : SIGLAS.test(w) ? w.toUpperCase() : w[0] + w.slice(1).toLowerCase()).join(' ');
+    return t[0].toUpperCase() + t.slice(1);
+}
+
 function categoriaProduto(codigo) {
     if (codigo.startsWith("INT-"))                             return "Intelbras";
     if (codigo.startsWith("CAM-"))                              return "Câmeras";
@@ -2679,7 +2720,7 @@ function gerarPDF() {
         const qtd = Number(card.querySelector('.qtd-num').value) || 0;
         if (!qtd) return;
         const prod = produtos.find(p => p.codigo === codigo);
-        itensProd.push({ descricao: prod ? (prod.descricao || prod.nome || codigo) : codigo, qtd });
+        itensProd.push({ descricao: descCliente(codigo), qtd });
     });
 
     // Infra
@@ -4365,7 +4406,7 @@ function _dadosDoHistorico(id) {
     const TDLs = 'padding:4px 8px;font-size:9px;color:#333;border-bottom:1px solid #eee;';
     const TDCs = 'padding:4px 8px;font-size:9px;color:#333;border-bottom:1px solid #eee;text-align:center;';
     const todosItens = [
-        ...(est.produtos || []).filter(p => p.codigo).map(p => ({ descricao: p.codigo, qtd: p.qtd })),
+        ...(est.produtos || []).filter(p => p.codigo).map(p => ({ descricao: descCliente(p.codigo), qtd: p.qtd })),
         ...(est.infra    || []).filter(i => i.nome ).map(i => ({ descricao: i.nome,   qtd: i.qtd }))
     ];
     const relacaoMateriais = todosItens.length ? `
@@ -4604,7 +4645,7 @@ function gerarLocacao() {
         const qtd = Number(card.querySelector('.qtd-num').value) || 0;
         if (!codigo || !qtd) return;
         const prod = produtos.find(p => p.codigo === codigo);
-        todosItens.push({ descricao: prod ? (prod.descricao || prod.nome || codigo) : codigo, qtd });
+        todosItens.push({ descricao: descCliente(codigo), qtd });
     });
     document.querySelectorAll('.item-infra').forEach(card => {
         const busca = card.querySelector('.item-busca-wrapper');
