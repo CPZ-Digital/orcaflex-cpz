@@ -1501,7 +1501,8 @@ body {
                     <select class="exp-input" id="expGarantia" style="width:100%;padding-left:8px;">
                         <option value="">—</option>
                         <option value="90 dias">90 dias</option>
-                        <option value="6 meses" selected>6 meses</option>
+                        <option value="3 meses" selected>3 meses</option>
+                        <option value="6 meses">6 meses</option>
                         <option value="1 ano">1 ano</option>
                         <option value="2 anos">2 anos</option>
                     </select>
@@ -1733,7 +1734,7 @@ let itensInfra = [];
 
 const ordemCategorias = [
     "Câmeras","Gravadores","Armazenamento","Cabos",
-    "Infraestrutura","Rede","Energia","Automação","Acessórios"
+    "Infraestrutura","Rede","Energia","Automação","Acessórios","Intelbras"
 ];
 
 const fmt = v => v.toLocaleString("pt-BR", { style:"currency", currency:"BRL" });
@@ -1761,6 +1762,7 @@ function simplificarNome(nome) {
 }
 
 function categoriaProduto(codigo) {
+    if (codigo.startsWith("INT-"))                             return "Intelbras";
     if (codigo.startsWith("CAM-"))                              return "Câmeras";
     if (codigo.startsWith("DVR")||codigo.startsWith("NVR"))     return "Gravadores";
     if (codigo.startsWith("ARM-"))                             return "Armazenamento";
@@ -1809,6 +1811,21 @@ async function carregarBanco() {
         const r = await fetch(URL_PRODUTOS);
         if (r.ok) { const l=parseCsv(await r.text(),true); if(l.length) produtos=l; }
     } catch(e) { console.error("Produtos:",e.message); }
+    // 2ª fonte: preços Intelbras (PSD nov/2026) ficam só no Supabase atrás do login (RLS); cópia local p/ funcionar offline
+    try {
+        const [a, b] = await Promise.all([_supa.from('intelbras_precos').select('*').limit(5000), _supa.from('intelbras_links').select('*').limit(5000)]);
+        if (a.error || b.error) throw (a.error || b.error);
+        localStorage.setItem('cpz_intelbras', JSON.stringify({ a: a.data, b: b.data }));
+    } catch(e) { console.error("Intelbras:", e.message || e); }
+    try {
+        const c = JSON.parse(localStorage.getItem('cpz_intelbras') || 'null');
+        if (c) {
+            c.a.forEach(i => produtos.push({ codigo:"INT-"+i.codigo, nome:simplificarNome(i.nome), valor:Number(i.psd), camera:/^Camera/i.test(i.familia||"") && !/cart[aã]o/i.test(i.nome) }));
+            // itens nossos ligados à Intelbras usam o PSD atual; sem PSD fica o preço da planilha
+            const L = {}; c.b.forEach(l => L[l.nosso] = l);
+            produtos.forEach(p => { const l = L[p.codigo]; if (l && l.psd) { p.valorPlanilha = p.valor; p.valor = Number(l.psd); } });
+        }
+    } catch(e) { console.error("Cache Intelbras:", e.message); }
     try {
         const r = await fetch(URL_INFRA);
         if (r.ok) { const l=parseCsv(await r.text(),false); if(l.length) itensInfra=l; }
@@ -1835,6 +1852,7 @@ function criarBusca(listaOpcoes, placeholder, valorInicial, onSelect) {
     if (valorInicial) {
         const opt = opcoes.find(o=>o.valor===valorInicial);
         if (opt) { input.value=opt.label; input.dataset.valor=opt.valor; }
+        else { input.value=valorInicial; input.dataset.valor=valorInicial; }
     }
 
     function renderDropdown(filtro) {
@@ -1843,6 +1861,7 @@ function criarBusca(listaOpcoes, placeholder, valorInicial, onSelect) {
         let grupoAtual=null;
         let count=0;
         opcoes.forEach(opt => {
+            if (count>=80) return; // evita renderizar ~2.500 itens da Intelbras de uma vez
             const match=!termo||opt.label.toLowerCase().includes(termo)||(opt.sublabel||"").toLowerCase().includes(termo)||(opt.grupo||"").toLowerCase().includes(termo);
             if (!match) return;
             if (opt.grupo && opt.grupo!==grupoAtual) {
@@ -2173,7 +2192,7 @@ function calcular() {
         const busca=card.querySelector(".item-busca-wrapper");
         const codigo=busca?busca.getValor():"";
         const qtd=Number(card.querySelector(".qtd-num").value)||0;
-        if (codigo.startsWith("CAM-")) qtdCameras+=qtd;
+        if (codigo.startsWith("CAM-") || (produtos.find(p=>p.codigo===codigo)||{}).camera) qtdCameras+=qtd;
         const precoEl=card.querySelector(".item-preco");
         const valorUnit=parseFloat(precoEl.dataset.valorUnit)||0;
         totalProd+=valorUnit*qtd;
@@ -2197,8 +2216,8 @@ function calcular() {
     const desl=50*diasT;
     // ponytail: adicional por câmera representa o valor do trabalho em si, igual pras 2 marcas
     // (calibrado com job real B&A: 50cam/dificil/68mil) — CPZ sai mais barato só por ter menos folha (1 dono vs 2 sócios)
-    const camAdicional={facil:400,medio:460,dificil:520};
-    const adicional=qtdCameras*(camAdicional[nivel||"facil"]);
+    // valor por câmera sobe linear de R$ 60 (kit padrão, 6 câmeras ≈ R$ 3.350) até R$ 520 (50 câmeras, job B&A de referência); fora da faixa fica nos extremos
+    const adicional=Math.round(qtdCameras*Math.min(520,Math.max(60,60+460*(qtdCameras-6)/44)));
     const diarias=usarSocio?diasT*350*2:diasT*300;
     const diarista=usarSocio?diasD*120:diasD*150;
     const despesas=desl+totalInfra+diarias+diarista+adicional;
@@ -2522,7 +2541,7 @@ function limparOrcamento() {
     document.getElementById("diasDiarista").value=1;
     _pagModo='avista'; _subAvista='5050'; _nPix=4; _nBoleto=4; _nCartao=4; _entrada=0;
     document.querySelectorAll('.pag-tab').forEach((t,i) => t.classList.toggle('ativo', i===0));
-    _clienteInfo={ nome:'', tel:'', email:'', data:'', validade:15, prazo:'2', garantia:'6 meses', obs:'' };
+    _clienteInfo={ nome:'', tel:'', email:'', data:'', validade:15, prazo:'2', garantia:'3 meses', obs:'' };
     _descontoPct=0;
     document.getElementById('descontoPct').value=0;
     document.getElementById('descontoEconomia').style.display='none';
@@ -2580,7 +2599,7 @@ function setEntrada(v) {
 }
 
 // ── EXPORTAR ──
-let _clienteInfo = { nome:'', tel:'', email:'', data:'', validade:15, prazo:'2', garantia:'6 meses', obs:'', endereco:'', numero:'' };
+let _clienteInfo = { nome:'', tel:'', email:'', data:'', validade:15, prazo:'2', garantia:'3 meses', obs:'', endereco:'', numero:'' };
 
 function abrirExportar() {
     const ci = _clienteInfo;
@@ -2747,7 +2766,7 @@ function gerarPDF() {
         '{{responsavel}}':       responsavel,
         '{{cnpj}}':              cnpj,
         '{{total}}':             fmtR(inst.total) + (_descontoPct > 0 ? ' <span style="font-size:12px;font-weight:400;opacity:0.7;">(desconto ' + _descontoPct + '% aplicado)</span>' : ''),
-        '{{garantia_bullet}}':   garantia ? '&bull; Garantia de <strong>' + garantia + '</strong> para os equipamentos e serviços instalados.<br>' : '',
+        '{{garantia_bullet}}':   garantia ? '&bull; Garantia de <strong>' + garantia + '</strong> para os equipamentos instalados.<br>' : '',
         '{{modoLabel}}':         modoLabel,
         '{{formaLabel}}':        formaLabel,
         '{{rows_parc}}':         rowsParc,
@@ -3620,6 +3639,18 @@ function _carregarKits() {
     try { return JSON.parse(localStorage.getItem('cpz_kits') || '[]'); } catch { return []; }
 }
 function _salvarKits(lista) { localStorage.setItem('cpz_kits', JSON.stringify(lista)); }
+// Kit padrão: 6 câmeras Full Color HDCVI, DVR 8 canais, fios aparentes (sem infra). Preços vêm do catálogo/Intelbras (PSD); HD e buchas são manuais.
+const KIT_PADRAO = { id:1, padrao:true, marca:'cpz', tipo:'analogica', nome:'Kit 6 câmeras Full Color (padrão)', total:'≈ R$ 3.350', data:'padrão',
+    diasTrabalho:1, diasDiarista:1, infra:[],
+    produtos:[
+        {codigo:'INT-4581253', qtd:1},                 // DVR MHDX 1208-C Dual Audio
+        {codigo:'ARM-HD-004', qtd:1, precoManual:399}, // HD 1TB vigilância (preço do Mercado Livre)
+        {codigo:'INT-4560182', qtd:6},                 // VHD 1220 Full Color G9 bullet
+        {codigo:'INF-RK-004', qtd:1}, {codigo:'ENG-PR-001', qtd:1}, {codigo:'ENG-FNT-002', qtd:1},
+        {codigo:'CAB-CFTV-001', qtd:1}, {codigo:'ACE-BAL-001', qtd:6}, {codigo:'ACE-CON-001', qtd:1}, {codigo:'INF-CX-002', qtd:6},
+        {codigo:'Buchas fixa-cabo (pacote ~200 un)', qtd:1, precoManual:32}
+    ] };
+function _todosKits() { return [KIT_PADRAO, ..._carregarKits()]; }
 
 function salvarKit() {
     const nome = document.getElementById('kitNome').value.trim();
@@ -3659,7 +3690,7 @@ function salvarKit() {
 }
 
 function carregarKit(id) {
-    const kit = _carregarKits().find(k => k.id === id);
+    const kit = _todosKits().find(k => k.id === id);
     if (!kit) return;
     if (!confirm(`Aplicar kit "${kit.nome}"? Os produtos atuais serão substituídos.`)) return;
     document.getElementById('listaProdutos').innerHTML = '';
@@ -3674,6 +3705,8 @@ function carregarKit(id) {
             cb.closest('.tipo-btn').classList.toggle('ativo', cb.value === kit.tipo);
         });
     }
+    if (kit.diasTrabalho != null) document.getElementById('diasTrabalho').value = kit.diasTrabalho;
+    if (kit.diasDiarista != null) document.getElementById('diasDiarista').value = kit.diasDiarista;
     calcular();
     fecharKits();
     mostrarToast('Kit aplicado!');
@@ -3687,7 +3720,7 @@ function excluirKit(id) {
 }
 
 function renderKits() {
-    const lista = _carregarKits();
+    const lista = _todosKits();
     const el    = document.getElementById('kitsLista');
     if (!lista.length) {
         el.innerHTML = '<div class="hist-vazio">Nenhum kit salvo ainda.<br><small style="font-size:11px;">Monte um orçamento e salve como kit para reutilizar.</small></div>';
@@ -3704,7 +3737,7 @@ function renderKits() {
             </div>
             <div class="kit-acoes">
                 <button class="kit-btn kit-btn-usar"    onclick="carregarKit(${k.id})">Usar</button>
-                <button class="kit-btn kit-btn-excluir" onclick="excluirKit(${k.id})">✕</button>
+                ${k.padrao ? '' : `<button class="kit-btn kit-btn-excluir" onclick="excluirKit(${k.id})">✕</button>`}
             </div>
         </div>`).join('');
 }
@@ -4352,7 +4385,7 @@ function _dadosDoHistorico(id) {
     const razaoSocial   = socio ? 'B&A Vision Segurança' : 'CPZ Digital';
     const contatoTel    = socio ? '(21) 99664-6927' : '(21) 96745-5648';
     const contatoEmail  = socio ? 'contato@bavision.com.br' : 'contato@cpzdigital.com.br';
-    const garantia      = ci.garantia || '6 meses';
+    const garantia      = ci.garantia || '3 meses';
     const prazo         = (ci.prazo || '2') + ' dias úteis';
     const obs           = ci.obs || '';
     const endereco      = ci.endereco || '';
