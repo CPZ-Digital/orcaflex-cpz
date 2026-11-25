@@ -2383,8 +2383,38 @@ async function _ensureAuth() {
     });
 }
 
+// fila do que não subiu pra nuvem: continua visível no aparelho e é reenviada na próxima abertura
+function _pendLer(t) { try { return JSON.parse(localStorage.getItem('cpz_pend_' + t) || '[]'); } catch { return []; } }
+function _pendSalvar(t, row, falhou) {
+    const q = _pendLer(t).filter(r => r.id !== row.id); if (falhou) q.push(row);
+    localStorage.setItem('cpz_pend_' + t, JSON.stringify(q));
+}
 async function _cloudUpsert(table, row) {
-    try { await _supa.from(table).upsert(row); } catch(e) { console.error('cloud upsert', table, e); }
+    try {
+        const { error } = await _supa.from(table).upsert(row);
+        if (error) throw error;
+        _pendSalvar(table, row, false); return true;
+    } catch(e) {
+        console.error('cloud upsert', table, e); _pendSalvar(table, row, true);
+        mostrarToast('Não sincronizou com a nuvem — fica salvo só neste aparelho');
+        return false;
+    }
+}
+async function _reenviarPendentes() {
+    for (const t of ['propostas', 'kits']) for (const row of _pendLer(t)) await _cloudUpsert(t, row);
+}
+function _mesclar(table, nuvem, fromRow) { // nuvem + o que ainda não subiu
+    const ids = new Set(nuvem.map(r => r.id));
+    return [..._pendLer(table).filter(r => !ids.has(r.id)).map(fromRow), ...nuvem.map(fromRow)];
+}
+async function _migrarLocalParaNuvem(table, locais, toRow) {
+    // 1x: o que foi salvo antes desta correção foi gravado na nuvem com marca 'cpz'/'ba' e era apagado do aparelho a cada abertura
+    const flag = 'cpz_mig_' + table + '_v1';
+    if (localStorage.getItem(flag)) return;
+    const nuvem = await _cloudPullAll(table); if (!nuvem) return;
+    const ids = new Set(nuvem.map(r => r.id)); let ok = true;
+    for (const l of locais.filter(l => !ids.has(l.id))) ok = (await _cloudUpsert(table, toRow(l))) && ok;
+    if (ok) localStorage.setItem(flag, '1');
 }
 async function _cloudDelete(table, id) {
     try { await _supa.from(table).delete().eq('id', id); } catch(e) { console.error('cloud delete', table, e); }
@@ -2397,21 +2427,24 @@ async function _cloudPullAll(table) {
     } catch(e) { console.error('cloud pull', table, e); return null; }
 }
 
-function _histToRow(e) { return { id:e.id, marca:e.marca||_marca, nome:e.nome, numero:e.numero, data:e.data, data_venc:e.dataVenc||null, total:e.total, status:e.status, estado:e.estado, updated_at:new Date().toISOString() }; }
-function _rowToHist(r) { return { id:r.id, nome:r.nome, numero:r.numero, data:r.data, dataVenc:r.data_venc, total:r.total, marca:r.marca, status:r.status, estado:r.estado }; }
-function _kitToRow(k)  { return { id:k.id, marca:k.marca||_marca, nome:k.nome, itens:k, updated_at:new Date().toISOString() }; }
+function _histToRow(e) { return { id:e.id, marca:_marca, nome:e.nome, numero:e.numero, data:e.data, data_venc:e.dataVenc||null, total:e.total, status:e.status, estado:e.estado, updated_at:new Date().toISOString() }; }
+function _rowToHist(r) { return { id:r.id, nome:r.nome, numero:r.numero, data:r.data, dataVenc:r.data_venc, total:r.total, marca:(r.numero || '').startsWith('BA') ? 'ba' : 'cpz', status:r.status, estado:r.estado }; }
+function _kitToRow(k)  { return { id:k.id, marca:_marca, nome:k.nome, itens:k, updated_at:new Date().toISOString() }; }
 function _rowToKit(r)  { return r.itens; }
 
 async function _cloudSyncStartup() {
     // nunca deixa falha de rede travar o app (PWA precisa funcionar offline)
     try {
+        await _reenviarPendentes();
+        await _migrarLocalParaNuvem('propostas', _carregarHistorico(), _histToRow);
+        await _migrarLocalParaNuvem('kits', _carregarKits(), _kitToRow);
         const [hist, kits, rasc] = await Promise.all([
             _cloudPullAll('propostas'),
             _cloudPullAll('kits'),
             _supa.from('rascunho').select('*').eq('marca', _marca).maybeSingle()
         ]);
-        if (hist) _salvarHistoricoStorage(hist.map(_rowToHist));
-        if (kits) _salvarKits(kits.map(_rowToKit));
+        if (hist) _salvarHistoricoStorage(_mesclar('propostas', hist, _rowToHist));
+        if (kits) _salvarKits(_mesclar('kits', kits, _rowToKit));
         // nuvem é sempre a fonte da verdade no startup: se não tem rascunho lá pra
         // essa marca, limpa o cache local também (autocorrige aba antiga com lixo
         // em cache de antes do isolamento de marca ter sido corrigido).
@@ -2425,13 +2458,13 @@ function _cloudSubscribeRealtime() {
         .on('postgres_changes', { event:'*', schema:'public', table:'propostas', filter:`marca=eq.${_marca}` }, async () => {
             const hist = await _cloudPullAll('propostas');
             if (!hist) return;
-            _salvarHistoricoStorage(hist.map(_rowToHist));
+            _salvarHistoricoStorage(_mesclar('propostas', hist, _rowToHist));
             if (document.getElementById('histOverlay').classList.contains('aberto')) renderHistorico();
         })
         .on('postgres_changes', { event:'*', schema:'public', table:'kits', filter:`marca=eq.${_marca}` }, async () => {
             const kits = await _cloudPullAll('kits');
             if (!kits) return;
-            _salvarKits(kits.map(_rowToKit));
+            _salvarKits(_mesclar('kits', kits, _rowToKit));
             if (document.getElementById('kitsOverlay').classList.contains('aberto')) renderKits();
         })
         .subscribe();
