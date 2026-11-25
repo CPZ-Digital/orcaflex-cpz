@@ -2338,10 +2338,9 @@ function _aplicarBrandLock() {
 _aplicarBrandLock(); // roda na hora, nao espera o init() (que depende de fetch de rede)
 
 // ── SYNC EM NUVEM (Supabase) ──
-// v2.0 usa marca própria ('orcaflex') fixa, isolada de 'cpz'/'ba' da produção —
-// mesmo mecanismo de filtro marca=eq.${_marca} em toda leitura/escrita, só que
-// aqui pra não vazar/sobrescrever o rascunho real de produção.
-const _marca = 'orcaflex';
+// v2.0 é a evolução do app original e COMPARTILHA os dados dele (histórico, kits e rascunho da marca 'cpz').
+// Não dá pra usar marca própria: o banco só aceita 'cpz'/'ba' (check constraint) e recusava 'orcaflex' em silêncio.
+const _marca = 'cpz';
 const _supa  = window.supabase.createClient(
     'https://eqbmqqfsbooatsmzgttz.supabase.co',
     'sb_publishable_IDA-WMWDbUE4cj0LllUeHg_Epoj7oa5'
