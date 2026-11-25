@@ -2768,7 +2768,7 @@ function gerarPDF() {
     });
 
     const qtdCameras = itensProd
-        .filter(it => /câmera|camera/i.test(it.descricao))
+        .filter(it => /^c[âa]mera/i.test(it.descricao))
         .reduce((s, it) => s + Number(it.qtd), 0);
     const qtdCamerasRow = qtdCameras > 0
         ? '<p style="font-size:12px;color:#333;margin:0 0 16px;padding:7px 12px;background:' + corL + ';border-left:3px solid ' + cor + ';">' +
@@ -4452,7 +4452,7 @@ function _dadosDoHistorico(id) {
             <td style="${TDCs}">${it.qtd}</td></tr>`).join('') +
         `</table>` : '';
 
-    const qtdCameras = todosItens.filter(it => /câmera|camera/i.test(it.descricao)).reduce((s,it) => s + Number(it.qtd), 0);
+    const qtdCameras = todosItens.filter(it => /^c[âa]mera/i.test(it.descricao)).reduce((s,it) => s + Number(it.qtd), 0);
 
     const responsavel   = socio ? 'Bruno &amp; Adriano — B&A Vision' : 'Adriano — CPZ Digital';
     const cnpj          = socio ? '62.456.202/0001-08' : '58.589.970/0001-54';
